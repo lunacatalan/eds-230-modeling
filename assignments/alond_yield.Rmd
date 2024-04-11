@@ -36,7 +36,11 @@ Grading
 ```{r}
 library(tidyverse)
 
-clim <- read.delim(here::here("assignments", "clim.txt"))
+clim <- read.delim(here::here("assignments", "clim.txt"),
+                   header = TRUE,
+                   sep = "")
+
+View(clim)
 ```
 
 
