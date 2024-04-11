@@ -43,13 +43,67 @@ clim <- read.delim(here::here("assignments", "clim.txt"),
 View(clim)
 
 # EQUATION 
-T_min = clim$tmin_c
 
-Y_min = (-0.015)*T_min - 0.0046*(T_min^2) - 0.07*P + 0.0043*(P^2) + 0.28
-Y_max = (-0.015)*T_min - 0.0046*(T_min^2) - 0.07*P + 0.0043*(P^2) + 0.28
-Y_mean = mean(Y_min, Y_max)
+almond_func <- function(df){
+
+  yields <- data.frame()
+ 
+  for(date in 1:nrow(df)) {
+    
+    T_min = df$tmin_c[date]
+    T_max = df$tmax_c[date]
+    P = df$precip[date]
+    
+    
+    Y_min = (-0.015*T_min) - (0.0046*(T_min**2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
+    Y_max = (-0.015*T_max) - (0.0046*(T_max^2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
+    Y_mean = mean(Y_min, Y_max)
+   
+    calculations <- data.frame(Y_min = Y_min,
+                               Y_max = Y_max,
+                               Y_mean = Y_mean)
+     
+   yields <-  rbind(yields, calculations)
+  }
+  
+ #results_df <- data.frame()
+
+  #results_df["Y_min"] <- Y_min
+  #results_df["Y_max"] <- Y_max
+
+  return(yields)
+}
+
+test <- almond_func(clim)
+    #t, solar=sierraczosolar, clr="green", eunit="W", g=FALSE, etype="direct", 
+                              # substitutes in the efficiency mapped at the beginning of the code
+                             # eff=.x 
+ test                             #)
 
 ```
+
+```{r}
+
+subset <- clim %>% 
+    filter(D >= "1988-12-01" & D <= "1988-12-20")
+
+yields <- function(df, start_date, end_date){
+
+  # subset basedon defined date
+  subset <- df %>% 
+    filter(df$D >= start_date & df&D <= end_date)
+  
+  # we want this to be dataframe with min, max, and mean almond yields
+  yields <- almond_func(subset)
+  
+  # returns dataframe
+  return(yields)
+  
+}
+
+
+```
+
 
 # Run the Model
 - apply the function to the test climate data (clim.txt)
