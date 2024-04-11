@@ -33,6 +33,13 @@ Grading
 # Implement Model in R
 - create an R file that has your function definition
 
+```{r}
+library(tidyverse)
+
+clim <- read.delim(here::here("assignments", "clim.txt"))
+```
+
+
 # Run the Model
 - apply the function to the test climate data (clim.txt)
 
