@@ -1,0 +1,43 @@
+---
+title: "Almond Yield Assignment"
+output:
+  slidy_presentation:
+    highlight: pygments
+  html_document: default
+  pdf_document: default
+  ioslides_presentation:
+    highlight: pygments
+  beamer_presentation:
+    highlight: pygments
+---
+
+Submit 
+- .R function 
+- .RMD
+- .html
+
+Your goal is to implement a simple model of almond yield anomaly response to climate
+- Inputs: daily times series of minimum, maximum daily temperatures and precipitation
+- Outputs: maximum, minimum and mean yield anomoly for a input time series
+The Lobell et al. 2006 paper will be the source for the transfer function that you will use in your model; specifically look at the equations in table 2.
+
+Grading 
+- a clear diagram that corresponds with your R function (10 pts) 
+- inputs and output and parameters shown on the diagram (10 pts)
+- correct function implementation (*.R file) (10 pts)
+- application of the function to clim.txt (in Rmarkdown file) (10 pts)
+- coding practices (clear documentation, informative variables names) (10 pts)
+
+# Draw the Model
+
+# Implement Model in R
+- create an R file that has your function definition
+
+# Run the Model
+- apply the function to the test climate data (clim.txt)
+
+# Check Work
+
+- the maximum almond yield anomaly should be approximately 1920 ton/acre 
+- the lowest almond yield anomaly should be approximately -0.027 ton/acre 
+- the mean almond yield anomaly should be approximately 182 ton/acre
