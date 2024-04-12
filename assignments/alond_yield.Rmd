@@ -118,6 +118,7 @@ jan_precip <- clim %>%
 almond_clim <- left_join(feb_temp, jan_precip)
 
 almond_yield <- almond_func(almond_clim)
+almond_yield
 ```
 
 
