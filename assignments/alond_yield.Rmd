@@ -35,78 +35,91 @@ Grading
 
 ```{r}
 library(tidyverse)
-
-clim <- read.delim(here::here("assignments", "clim.txt"),
-                   header = TRUE,
-                   sep = "")
-
-View(clim)
-
-# EQUATION 
-
-almond_func <- function(df){
-
-  yields <- data.frame()
- 
-  for(date in 1:nrow(df)) {
-    
-    T_min = df$tmin_c[date]
-    T_max = df$tmax_c[date]
-    P = df$precip[date]
-    
-    
-    Y_min = (-0.015*T_min) - (0.0046*(T_min**2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
-    Y_max = (-0.015*T_max) - (0.0046*(T_max^2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
-    Y_mean = mean(Y_min, Y_max)
-   
-    calculations <- data.frame(Y_min = Y_min,
-                               Y_max = Y_max,
-                               Y_mean = Y_mean)
-     
-   yields <-  rbind(yields, calculations)
-  }
-  
- #results_df <- data.frame()
-
-  #results_df["Y_min"] <- Y_min
-  #results_df["Y_max"] <- Y_max
-
-  return(yields)
-}
-
-test <- almond_func(clim)
-    #t, solar=sierraczosolar, clr="green", eunit="W", g=FALSE, etype="direct", 
-                              # substitutes in the efficiency mapped at the beginning of the code
-                             # eff=.x 
- test                             #)
-
 ```
+
 
 ```{r}
 
-subset <- clim %>% 
-    filter(D >= "1988-12-01" & D <= "1988-12-20")
+yields <- data.frame()
 
-yields <- function(df, start_date, end_date){
-
-  # subset basedon defined date
-  subset <- df %>% 
-    filter(df$D >= start_date & df&D <= end_date)
+# iterate over the rows to get yields
+for(date in 1:nrow(almond_clim)) {
   
-  # we want this to be dataframe with min, max, and mean almond yields
-  yields <- almond_func(subset)
+  T_min = almond_clim$tmin_c[date]
+  P = almond_clim$precip[date]
   
-  # returns dataframe
-  return(yields)
+  Y_min = (-0.015*T_min) - (0.0046*(T_min**2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
   
+  calculations <- data.frame(Y_min = Y_min)
+  
+  yields <-  rbind(yields, calculations)
 }
 
+max(yields)
+min(yields)
+mean(yields$Y_min)
+
+```
+
+
+```{r}
+# EQUATION 
+almond_func <- function(df){
+  
+  yields <- data.frame()
+  
+  # iterate over the rows to get yields
+  for(date in 1:nrow(df)) {
+    
+    T_min = df$tmin_c[date]
+    P = df$precip[date]
+    
+    Y_min = (-0.015*T_min) - (0.0046*(T_min**2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
+    
+    calculations <- data.frame(Y_min = Y_min)
+    
+    yields <-  rbind(yields, calculations)
+  }
+  
+  yield <- data.frame(
+    Ymax = max(yields),
+    Ymin = min(yields),
+    Ymean = mean(yields$Y_min)
+  )
+  
+  return(yield)
+}
 
 ```
 
 
 # Run the Model
 - apply the function to the test climate data (clim.txt)
+```{r}
+
+clim <- read.delim('/Users/lunacatalan/Documents/dev/eds230/eds-230-modeling/assignments/clim.txt',
+                   header = TRUE,
+                   sep = " ")
+
+# select month for almond yields
+feb_temp <- clim %>% 
+  group_by(year) %>% 
+  filter(month == 2) %>% 
+  summarize(tmin_c = min(tmin_c),
+            tmax_c = max(tmax_c))
+
+# select precipitation for almond yields
+jan_precip <- clim %>% 
+  group_by(year) %>% 
+  filter(month == 1) %>% 
+  summarize(precip = sum(precip))
+
+# join the datasets
+almond_clim <- left_join(feb_temp, jan_precip)
+
+almond_yield <- almond_func(almond_clim)
+```
+
 
 # Check Work
 
