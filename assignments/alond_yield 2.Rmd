@@ -1,0 +1,136 @@
+---
+title: "Almond Yield Assignment"
+authors: "Luna Hershenfeld-Catalan & Sofia Ingersoll"
+date: "2024 April 12"
+output:
+  slidy_presentation:
+    highlight: pygments
+  html_document: default
+  pdf_document: default
+  ioslides_presentation:
+    highlight: pygments
+  beamer_presentation:
+    highlight: pygments
+---
+
+Submit 
+- .R function 
+- .RMD
+- .html
+
+Your goal is to implement a simple model of almond yield anomaly response to climate
+- Inputs: daily times series of minimum, maximum daily temperatures and precipitation
+- Outputs: maximum, minimum and mean yield anomoly for a input time series
+The Lobell et al. 2006 paper will be the source for the transfer function that you will use in your model; specifically look at the equations in table 2.
+
+Grading 
+- a clear diagram that corresponds with your R function (10 pts) 
+- inputs and output and parameters shown on the diagram (10 pts)
+- correct function implementation (*.R file) (10 pts)
+- application of the function to clim.txt (in Rmarkdown file) (10 pts)
+- coding practices (clear documentation, informative variables names) (10 pts)
+
+# Draw the Model
+
+# Implement Model in R
+- create an R file that has your function definition
+
+```{r}
+library(tidyverse)
+library(here)
+```
+```{r}
+knitr::include_graphics(here("assignments","img","hw1_diagram.png"))
+```
+
+```{r read_n_wrangle}
+#clim <- read.delim('/Users/lunacatalan/Documents/dev/eds230/eds-230-modeling/assignments/clim.txt',
+ #                  header = TRUE,
+  #                 sep = " ")
+
+clim <- read.delim(here('assignments','clim.txt'),
+                   header = TRUE,
+                   sep = " ")
+
+# select month for almond yields
+feb_temp <- clim %>% 
+  group_by(year) %>% 
+  filter(month == 2) %>% 
+  summarize(tmin_c = min(tmin_c),
+            # not directly called in code, so commenting out for now
+           # tmax_c = max(tmax_c)
+           )
+
+# select precipitation for almond yields
+jan_precip <- clim %>% 
+  group_by(year) %>% 
+  filter(month == 1) %>% 
+  summarize(precip = sum(precip))
+
+# join the datasets
+almond_clim <- left_join(feb_temp, jan_precip)
+```
+```{r yield_function}
+# EQUATION 
+almond_func <- function(df){
+  
+  yields <- data.frame()
+  
+  # iterate over the rows to get yields
+  for(date in 1:nrow(df)) {
+    
+    T_min = df$tmin_c[date]
+    P = df$precip[date]
+    
+    Y_min = (-0.015*T_min) - (0.0046*(T_min**2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
+    
+    calculations <- data.frame(Y_min = Y_min)
+    
+    yields <-  rbind(yields, calculations)
+  }
+  
+  yield <- data.frame(
+    Ymax = max(yields),
+    Ymin = min(yields),
+    Ymean = mean(yields$Y_min)
+  )
+  
+  return(yield)
+}
+```
+
+# Run the Model
+- apply the function to the test climate data (clim.txt)
+```{r run_model}
+almond_yield <- almond_func(almond_clim)
+
+almond_yield
+```
+
+# Check Work
+
+- the maximum almond yield anomaly should be approximately 1920 ton/acre 
+- the lowest almond yield anomaly should be approximately -0.027 ton/acre 
+- the mean almond yield anomaly should be approximately 182 ton/acre
+
+
+```{r practice-chunk}
+#yields <- data.frame()
+
+# iterate over the rows to get yields
+#for(date in 1:nrow(almond_clim)) {
+  
+ # T_min = almond_clim$tmin_c[date]
+  #P = almond_clim$precip[date]
+  
+  #Y_min = (-0.015*T_min) - (0.0046*(T_min**2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
+  
+#  calculations <- data.frame(Y_min = Y_min)
+  
+ # yields <-  rbind(yields, calculations)
+#}
+
+#max(yields)
+#min(yields)
+#mean(yields$Y_min)
+```

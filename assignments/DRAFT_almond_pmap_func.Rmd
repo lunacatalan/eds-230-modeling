@@ -1,0 +1,336 @@
+```{r}
+library(tidyverse)
+
+clim <- read.delim(here::here("assignments", "clim.txt"),
+                   header = TRUE,
+                   sep = "") %>% 
+  group_by(year) %>% 
+  filter(month == 2)
+
+head(clim)
+```
+```{r}
+T_min <- mean(clim$tmin_c)
+T_max <- mean(clim$tmax_c)
+P <- mean(clim$precip)
+
+
+Y_min = (-0.015*T_min) - (0.0046*(T_min**2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
+Y_max = (-0.015*T_max) - (0.0046*(T_max^2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
+Y_mean = mean(Y_min, Y_max)
+
+calculations <- data.frame(Y_min = Y_min,
+                           Y_max = Y_max,
+                           Y_mean = Y_mean)
+
+yields <-  rbind(yields, calculations)
+  
+
+#  return(yields)
+#}
+```
+
+
+```{r}
+# Calculate monthly average minimum and maximum temperatures
+monthly_avg <- clim %>%
+  group_by(Month) %>%
+  summarize(avg_min_temp = mean(tmin_c),
+            avg_max_temp = mean(tmax_c),
+            total_precipitation = sum(precip))
+
+# Calculate yield anomaly for each month
+monthly_avg <- monthly_avg %>%
+  mutate(yield_anomaly = yield_anomaly(avg_min_temp, total_precipitation))
+
+# Aggregate monthly yield anomalies to get max, min, and mean yield anomalies
+max_yield_anomaly <- max(monthly_avg$yield_anomaly)
+min_yield_anomaly <- min(monthly_avg$yield_anomaly)
+mean_yield_anomaly <- mean(monthly_avg$yield_anomaly)
+
+# Print results
+cat("Maximum almond yield anomaly:", max_yield_anomaly, "ton/acre\n")
+cat("Minimum almond yield anomaly:", min_yield_anomaly, "ton/acre\n")
+cat("Mean almond yield anomaly:", mean_yield_anomaly, "ton/acre\n")
+
+```
+
+
+
+
+
+
+
+```{r}
+#n_samples = seq_along(start_date, end_date, by = row)
+
+# Define function to calculate yield anomaly
+calculate_yield_anomaly <- function(Temp, P) {
+  Y <- (-0.015 * Temp) - (0.0046 * (Temp^2)) - (0.07 * P) + (0.0043 * (P^2)) + 0.28
+  return(Y)
+}
+
+
+
+Temp <- runif(min = mean(clim$tmin_c),
+             max = mean(clim$tmin_c),
+             n = 9)
+
+P <- runif(min = min(clim$precip),
+          max = min(clim$precip),
+          n = 9)
+
+
+parms = cbind.data.frame(Temp, P)
+
+results <- parms %>% 
+  pmap(calculate_yield_anomaly)
+
+results
+
+
+# takes function name and then names of all parameters that don't change
+results = parms %>% pmap(solarpv,  area=0.1, 
+                         solar=sierraczosolar, clr="green",
+                         eunit="W", g=FALSE, etype="direct")
+
+
+# Apply function to calculate yield anomaly for each day using pmap
+df <- df %>%
+  mutate(Yield_Anomaly = pmap_dbl(list(T_min = T_min, T_max = T_max, Precipitation = Precipitation), calculate_yield_anomaly))
+
+subset <- clim %>% 
+    filter(D >= "1988-12-01" & D <= "1988-12-20")
+
+yields <- function(df, start_date, end_date){
+
+  # subset basedon defined date
+  subset <- df %>% 
+    filter(df$D >= start_date & df&D <= end_date)
+  
+  # we want this to be dataframe with min, max, and mean almond yields
+  yields <- almond_func(subset)
+  
+  # returns dataframe
+  return(yields)
+  
+}
+
+```
+
+```{r}
+# generate samples for both parameters
+nsamples = 300
+deviation = 0.15
+base_thresh = 10000
+ethresh = runif(min=base_thresh-deviation*base_thresh,
+                max = base_thresh+deviation*base_thresh, n=nsamples)
+
+eff = rnorm(mean=0.6, sd = 0.1, n=nsamples)
+
+parms = cbind.data.frame(eff, ethresh)
+
+# use pmap 
+# takes function name and then names of all parameters that don't change
+results = parms %>% pmap(solarpv,  area=0.1, 
+                         solar=sierraczosolar, clr="green",
+                         eunit="W", g=FALSE, etype="direct")
+
+results[[1]]
+length(results)
+
+# now we can extract results from the list as above
+mean_elect = map_df(results,`[`, c("mean")) 
+# and we can add the parameter values for each run
+mean_elect = cbind.data.frame(mean_elect, parms)
+
+# plot - pick on of the 2 parameter as a color
+
+p1 = ggplot(mean_elect, aes(ethresh, mean, col=eff))+geom_point(cex=2)+
+  labs(y="Mean Annual Electricity W", x="Threshold Radiation (kJ/m2)  \n above which energy production is more efficient")
+
+p2 = ggplot(mean_elect, aes(eff, mean, col=ethresh))+geom_point(cex=2)+
+  labs(y="Mean Annual Electricity W", x="Efficiency")
+ggarrange(p1,p2)
+
+# what do we learn from this
+
+# extract annual 
+tmp = map_df(results,`[`, c("annual")) 
+annual_elect = as.data.frame(tmp$annual$year)
+colnames(annual_elect)="year"
+annual_elect$elect = tmp$annual$elect
+
+```
+
+```{r}
+# EQUATION 
+dts = rnorm(mean = 0, sd = 1, 20)
+
+test <- dts %>% 
+# generate samples for parameters
+#T_min <- mean(clim$tmin_c)
+#T_max <- mean(clim$tmax_c)
+P <- mean(clim$precip)
+#P = mean(df$precip[start_date], df$precip[end_date])
+#T_mean <- mean(T_min, T_max)
+
+T = runif(min = df$tmin_c,
+                max = df$tmin_c,
+                n=nsamples)
+
+n_samples = seq_along(start_date, end_date, by = row)
+
+P = rnorm(mean=0.6, sd = 0.1, n = n_samples)
+
+parms = cbind.data.frame(eff, Temp)
+
+# use pmap 
+# takes function name and then names of all parameters that don't change
+results = parms %>% pmap(solarpv,  area=0.1, 
+                         solar=sierraczosolar, clr="green",
+                         eunit="W", g=FALSE, etype="direct")
+
+
+almond_func <- function(df, start_date, end_date){
+  
+  subset <- clim %>% 
+    filter(D >= start_date & D <= end_date)
+  
+  yields <- function(df, start_date, end_date){
+    
+    # subset basedon defined date
+    subset <- df %>% 
+      
+      filter(df$D >= start_date & df&D <= end_date)
+    
+    # we want this to be dataframe with min, max, and mean almond yields
+    yields <- almond_func(subset)
+    
+    # returns dataframe
+    return(yields)
+    
+  }
+  
+  T = runif(min = df$tmin_c,
+            max = df$tmin_c,
+            n=nsamples)
+  
+  n_samples = seq_along(start_date, end_date, by = row)
+  
+  P = rnorm(mean=0.6, sd = 0.1, n = n_samples)
+  
+  parms = cbind.data.frame(eff, Temp)
+  
+  
+  
+  Y_min = (-0.015*T_min) - (0.0046*(T_min**2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
+  Y_max = (-0.015*T_max) - (0.0046*(T_max^2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
+  Y_mean = mean(Y_min, Y_max)
+  
+  calculations <- data.frame(Y_min = Y_min,
+                             Y_max = Y_max,
+                             Y_mean = Y_mean)
+  
+  yields <-  rbind(yields, calculations)
+  
+  
+ #results_df <- data.frame()
+
+  #results_df["Y_min"] <- Y_min
+  #results_df["Y_max"] <- Y_max
+
+  return(yields)
+}
+
+test <- almond_func(clim, 1988-12-01, 1988-12-20)
+    
+```
+
+
+
+
+```{r}
+almond_func <- function(df, start_date, end_date){
+  
+  subset <- clim %>% 
+    filter(D >= start_date & D <= end_date)
+  
+  yields <- function(df, start_date, end_date){
+    
+    # subset basedon defined date
+    subset <- df %>% 
+      
+      filter(df$D >= start_date & df&D <= end_date)
+    
+    # we want this to be dataframe with min, max, and mean almond yields
+    yields <- almond_func(subset)
+    
+    # returns dataframe
+    return(yields)
+    
+}
+  
+  
+  Y_min = (-0.015*T_min) - (0.0046*(T_min**2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
+  Y_max = (-0.015*T_max) - (0.0046*(T_max^2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
+  Y_mean = mean(Y_min, Y_max)
+  
+  calculations <- data.frame(Y_min = Y_min,
+                             Y_max = Y_max,
+                             Y_mean = Y_mean)
+  
+  yields <-  rbind(yields, calculations)
+}
+```
+
+
+
+
+```{r}
+almond_func <- function(df){
+
+  yields <- data.frame()
+ 
+  for(date in 1:nrow(df)) {
+    
+    T_min = df$tmin_c[date]
+    T_max = df$tmax_c[date]
+    P = df$precip[date]
+    
+    
+    Y_min = (-0.015*T_min) - (0.0046*(T_min**2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
+    Y_max = (-0.015*T_max) - (0.0046*(T_max^2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
+    Y_mean = mean(Y_min, Y_max)
+   
+    calculations <- data.frame(Y_min = Y_min,
+                               Y_max = Y_max,
+                               Y_mean = Y_mean)
+     
+   yields <-  rbind(yields, calculations)
+  }
+  
+```
+
+
+
+
+
+```{r}
+subset <- clim %>% 
+    filter(D >= "1988-12-01" & D <= "1988-12-20")
+
+yields <- function(df, start_date, end_date){
+
+  # subset basedon defined date
+  subset <- df %>% 
+    filter(df$D >= start_date & df&D <= end_date)
+  
+  # we want this to be dataframe with min, max, and mean almond yields
+  yields <- almond_func(subset)
+  
+  # returns dataframe
+  return(yields)
+  
+}
+```
