@@ -134,3 +134,29 @@ almond_yield
 #min(yields)
 #mean(yields$Y_min)
 ```
+
+
+# Assignment 3: Next steps
+
+Develop a profit model for your almond yield (you can make this up - think about what the parameters would be)
+- Negatives: cost of farming (eg. price of water, land rent, fertilizer, labor, machinery) 
+- Positives: amount of yield (per tree?), market almond price (multiply this with the yield parameter - they have to be in the same unit)
+
+```{r}
+
+almond_profit <- function(costs, yield, market_price) {
+  
+  profit = yield*market_price - costs
+  
+}
+
+```
+
+
+Do a simple informal sensitivity analysis of almond yield profit using at least 2 parameters
+- Costs of water could change by year / rainfall
+- Price of labor or fertilizer
+
+Create 2 graphs of the results - you can decide what is the most meaningful graph 
+
+* Write a short paragraph (in the Rmarkdown document) to summarize you interpretation of your model results (e.g what do 'take away' from your model and sensitivity analysis)
