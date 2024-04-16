@@ -114,7 +114,6 @@ almond_func <- function(df) {
 ```{r}
 almond_func(monthly_clim)
 ```
- 
 # Profit Yield Function
 
 ```{r}
