@@ -36,6 +36,7 @@ knitr::opts_chunk$set(echo = TRUE#, message = FALSE, warning = FALSE
                       )
 # libraries
 library(tidyverse)
+library(purrr)
 library(here)
 
 # load data
@@ -51,7 +52,9 @@ monthly_clim <- clim %>%
   # this order was selected so we can easily access the previous month's total precip
   group_by(year, month) %>%
   summarize(avg_tmin_c = mean(tmin_c),
-            total_precip = sum(precip))
+            total_precip = sum(precip)) %>% 
+  # to assess almond yield profit overtime 
+  filter(month == c(1, 2))
 
 head(monthly_clim)
 ```
@@ -65,44 +68,45 @@ head(monthly_clim)
 #' @param  month (dy)
 #' @return data frame with estimate of yield
 
-almond_func <- function(df){
-  
+almond_func <- function(df) {
   yields <- data.frame()
   
-  # iterate over the rows to get yields
-  for(date in 1:nrow(df)) {
+  # Filter the data to include only February rows
+  feb_data <- df[df$month == 2, ]
+  
+  # Iterate over the February data
+  for (i in 1:nrow(feb_data)) {
+    year <- feb_data$year[i]
+    t_min <- feb_data$avg_tmin_c[i]
     
-    T_min = df$avg_tmin_c[date]
+    # Get the January precipitation for the current year
+    jan_precip <- df$total_precip[df$year == year & df$month == 1]
     
-    # Use the previous month's precipitation
-    if (date > 1) {
-      P <- df$total_precip[date - 1]
-    } 
-    # If there's no previous month, set precipitation to NA
-    else {
-      P <- NA  
-    }
-    
-   # Get the year and month for the current row
-    Year <- df$year[date]
-    Month <- df$month[date]
-    
-    Y_min = (-0.015*T_min) - (0.0046*(T_min**2)) - (0.07*P) + (0.0043*(P^2)) + 0.28
-    
-    calculations <- data.frame(Year = Year,
-                               Month = Month,
-                               Y_min = Y_min)
-    
-    yields <-  rbind(yields, calculations)
+    # Calculate Y_min for February of the current year
+   # if (length(jan_precip) > 0) {
+      Y_min <- (-0.015 * t_min) - (0.0046 * (t_min^2)) - (0.07 * jan_precip) + (0.0043 * (jan_precip^2)) + 0.28
+      
+      # Create a dataframe with calculated values for the current year and month 2
+      calculations <- data.frame(
+        Year = rep(year, length(Y_min)),
+        Month = rep(2, length(Y_min)),
+        Y_min = Y_min
+      )
+      
+      # Append the calculations to the yields dataframe
+      yields <- rbind(yields, calculations)
+ #   }
   }
   
+  # Calculate summary statistics for the yields
   yield_summary <- data.frame(
-    Ymax = max(na.omit(yields$Y_min)),
-    Ymin = min(na.omit(yields$Y_min)),
-    Ymean = mean(na.omit(yields$Y_min))
+    Ymax = max(yields$Y_min, na.rm = TRUE),
+    Ymin = min(yields$Y_min, na.rm = TRUE),
+    Ymean = mean(yields$Y_min, na.rm = TRUE)
   )
   
-  return(list(yield_summary, yields))
+  # Return both the summary statistics and the yields dataframe in a list
+  return(list(yield_summary = yield_summary, yields = yields))
 }
 ```
  
@@ -166,7 +170,169 @@ compute_NPV = function(value, time, discount=0.12) {
 **pulling from  `InformalSensitivity2.Rmd``**
 ### mapping parameters
 ```{r}
+almond_func <- function(T, P, df) {
+  yields <- data.frame()
+  
+  # iterate over the rows to get yields
+  for(date in 1:nrow(df)) {
+    T_min <- T[date]
+    
+    # Use the previous month's precipitation
+    if (date > 1) {
+      P_val <- P[date - 1]
+    } else {
+      P_val <- NA
+    }
+    
+    # Calculate yield
+    Y_min <- (-0.015 * T_min) - (0.0046 * (T_min^2)) - (0.07 * P_val) + (0.0043 * (P_val^2)) + 0.28
+    
+    # Print out intermediate values for debugging
+    cat("T_min:", T_min, "\n")
+    cat("P_val:", P_val, "\n")
+    cat("Y_min:", Y_min, "\n")
+    
+    # Get the year and month for the current row
+    Year <- df$year[date]
+    Month <- df$month[date]
+    
+    # Create a dataframe with yield, year, and month
+    calculations <- data.frame(
+      Year = Year,
+      Month = Month,
+      Y_min = Y_min
+    )
+    
+    # Append the calculations to the yields dataframe
+    yields <- rbind(yields, calculations)
+  }
+  
+  # Remove rows with NA values in Y_min
+  yields <- na.omit(yields)
+  
+  # Calculate summary statistics for the yields
+  yield_summary <- data.frame(
+    Ymax = max(yields$Y_min, na.rm = TRUE),
+    Ymin = min(yields$Y_min, na.rm = TRUE),
+    Ymean = mean(yields$Y_min, na.rm = TRUE)
+    
+  )
+  
+  # Return both the summary statistics and the yields dataframe in a list
+  return(list(yield_summary = yield_summary, yields = yields))
+}
+
+# Generate random T and P values
+T <- runif(min = min(clim$tmin_c), max = max(clim$tmin_c),n = 10)
+P <- runif(min = min(clim$precip), max = max(clim$precip), n = 10)
+
+# Combine T and P into a dataframe
+parms <- data.frame(T = T, P = P)
+
+# Call almond_func for each row of parms
+results <- pmap(list(T = parms$T, P = parms$P), almond_func, df = monthly_clim)
+
+results
+
+```
+
+
+```{r}
+library(purrr)
+
+# Define the almond_func function
+almond_func <- function(T, P, df) {
+  yields <- data.frame()
+  
+  # iterate over the rows to get yields
+  for (date in 1:nrow(df)) {
+    
+    # Get the temperature and precipitation
+    T_min <- T[date]
+    if (date > 1) {
+      P_val <- P[date - 1]
+    } else {
+      P_val <- NA  # If there's no previous month, set precipitation to NA
+    }
+    
+    # Calculate yield
+    Y_min <- (-0.015 * T_min) - (0.0046 * (T_min^2)) - (0.07 * P_val) + (0.0043 * (P_val^2)) + 0.28
+    
+    # Get the year and month for the current row
+    Year <- df$year[date]
+    Month <- df$month[date]
+    
+    # Create a dataframe with yield, year, and month
+    calculations <- data.frame(
+      Y_min = Y_min,
+      Year = Year,
+      Month = Month
+    )
+    
+    # Append the calculations to the yields dataframe
+    yields <- rbind(yields, calculations)
+  }
+  
+  # Remove rows with NA values in Y_min
+  yields <- na.omit(yields)
+  
+  # Check if there are any non-missing values in Y_min
+  if (nrow(yields) == 0) {
+    # If there are no non-missing values, set summary statistics to NA
+    yield_summary <- data.frame(
+      Ymax = NA,
+      Ymin = NA,
+      Ymean = NA
+    )
+  } else {
+    # Calculate summary statistics for the yields
+    yield_summary <- data.frame(
+      Ymax = max(yields$Y_min),
+      Ymin = min(yields$Y_min),
+      Ymean = mean(yields$Y_min)
+    )
+  }
+  
+  # Return both the summary statistics and the yields dataframe in a list
+  return(list(yield_summary = yield_summary, yields = yields))
+}
+
+# Generate random T and P values
+T <- runif(min = min(clim$tmin_c), max = max(clim$tmin_c), n = 9)
+P <- runif(min = min(clim$precip), max = max(clim$precip), n = 9)
+
+# Combine T and P into a dataframe
+parms <- data.frame(T = T, P = P)
+
+# Call almond_func for each row of parms
+results <- pmap(list(T = parms$T, P = parms$P), almond_func, df = monthly_clim)
+
+results
+```
+
+
+
+
+```{r}
 # FROM DRAFT RMD
+T <- runif(min = min(clim$tmin_c),
+             max = max(clim$tmin_c),
+             n = 9)
+
+P <- runif(min = min(clim$precip),
+          max = max(clim$precip),
+          n = 9)
+
+
+parms = cbind.data.frame(T, P)
+
+results <- parms %>% 
+  pmap(almond_func,
+       df = monthly_clim,
+       clr = "skyblue"
+       )
+
+results
 
 ```
 
