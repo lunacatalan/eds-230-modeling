@@ -36,11 +36,10 @@ yields <-  rbind(yields, calculations)
 monthly_avg <- clim %>%
   group_by(Month) %>%
   summarize(avg_min_temp = mean(tmin_c),
-            avg_max_temp = mean(tmax_c),
             total_precipitation = sum(precip))
 
 # Calculate yield anomaly for each month
-monthly_avg <- monthly_avg %>%
+monthly_clim <- monthly_avg %>%
   mutate(yield_anomaly = yield_anomaly(avg_min_temp, total_precipitation))
 
 # Aggregate monthly yield anomalies to get max, min, and mean yield anomalies
