@@ -51,7 +51,7 @@ clim <- read.delim(here('assignments','clim.txt'),
 monthly_clim <- clim %>%
   # this order was selected so we can easily access the previous month's total precip
   group_by(year, month) %>%
-  summarize(avg_tmin_c = mean(tmin_c),
+  summarize(min_tmin_c = min(tmin_c),
             total_precip = sum(precip)) %>% 
   # to assess almond yield profit overtime 
   filter(month == c(1, 2))
@@ -77,7 +77,7 @@ almond_func <- function(df) {
   # Iterate over the February data
   for (i in 1:nrow(feb_data)) {
     year <- feb_data$year[i]
-    t_min <- feb_data$avg_tmin_c[i]
+    t_min <- feb_data$min_tmin_c[i]
     
     # Get the January precipitation for the current year
     jan_precip <- df$total_precip[df$year == year & df$month == 1]
