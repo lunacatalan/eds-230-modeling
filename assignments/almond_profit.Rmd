@@ -38,6 +38,8 @@ knitr::opts_chunk$set(echo = TRUE#, message = FALSE, warning = FALSE
 library(tidyverse)
 library(purrr)
 library(here)
+library(patchwork)
+library(RColorBrewer)
 
 # load data
 clim <- read.delim(here('assignments','clim.txt'),
@@ -59,90 +61,12 @@ monthly_clim <- clim %>%
 head(monthly_clim)
 ```
 
- # Almond Yield Function
-```{r}
-#' computes yield from min. monthly temp and last months total precip
-#' @param  T_min (C)
-#' @param  P (mm)
-#' @param  year (yr)
-#' @param  month (dy)
-#' @return data frame with estimate of yield
-
-almond_func <- function(df) {
-  yields <- data.frame()
-  
-  # Filter the data to include only February rows
-  feb_data <- df[df$month == 2, ]
-  
-  # Iterate over the February data
-  for (i in 1:nrow(feb_data)) {
-    year <- feb_data$year[i]
-    t_min <- feb_data$min_tmin_c[i]
-    
-    # Get the January precipitation for the current year
-    jan_precip <- df$total_precip[df$year == year & df$month == 1]
-    
-    # Calculate Y_min for February of the current year
-      Y_min <- (-0.015 * t_min) - (0.0046 * (t_min^2)) - (0.07 * jan_precip) + (0.0043 * (jan_precip^2)) + 0.28
-      
-      # Create a dataframe with calculated values for the current year and month 2
-      calculations <- data.frame(
-        Year = rep(year, length(Y_min)),
-        Month = rep(2, length(Y_min)),
-        Y_min = Y_min
-      )
-      
-      # Append the calculations to the yields dataframe
-      yields <- rbind(yields, calculations)
-  }
-  
-  # Calculate summary statistics for the yields
-  yield_summary <- data.frame(
-    Ymax = max(yields$Y_min, na.rm = TRUE),
-    Ymin = min(yields$Y_min, na.rm = TRUE),
-    Ymean = mean(yields$Y_min, na.rm = TRUE)
-  )
-  
-  # Return both the summary statistics and the yields dataframe in a list
-  return(list(yield_summary = yield_summary, yields = yields))
-}
-```
  
 ### Testing Updated Function
 ```{r}
-almond_func(monthly_clim)
-```
-# Profit Yield Function
 
-```{r}
-#' computes profit from power generation
-#' @param  price ($/kj)
-#' @param  energy (kj/yr)
-#' @param  year (when was energy obtained)
-#' @param discount rate (default 0.12)
-#' @return data frame with estimate of profit
-compute_profit_frompower = function(energy, year, price, discount=0.12) {
-
-  # make sure values are reasonable
-  if (length(energy) < 1)
-    return(NA)
-  
-  # energy cannot be negative
-  if (min(energy ) < 0)
-    return(NA)
-  
-  # generate a unique identifier or scenario number
-  scen = seq(from=1, to=length(energy))
-  yearprofit = data.frame(scen=scen, energy=energy, year=year)
-  yearprofit$net =  yearprofit$energy*price
-
-  # note how discount is passed through to this function
-  # remember to normalize the year to start year e.g the first year
-  yearprofit= yearprofit %>% 
-      mutate(netpre = compute_NPV(value=net, time=year-year[1], discount=discount ))
-  
-  return(yearprofit)
-}
+source(here::here("R/almond_yield.R"))
+almond_yield(monthly_clim)
 ```
 
 # Net Present Value Function (NPV)
@@ -156,245 +80,124 @@ compute_profit_frompower = function(energy, year, price, discount=0.12) {
 #' @return value in $
 
 
-compute_NPV = function(value, time, discount=0.12) {
-	result = value / (1 + discount)**time
+compute_NPV = function(cost, time, discount=0.12) {
+	result = cost / (1 + discount)**time
 	return(result)
 }
 ```
 
 
+# Profit Yield Function
+
+```{r}
+
+year_profit <- almond_yield(monthly_clim) %>% 
+  mutate(scen = row_number()) %>% 
+    select(year = Year, 
+           yield = Y_min)
+
+year_profit$net =  year_profit$Y_min*1000
+
+profit = yield_df %>% 
+  pmap(compute_profit_fromyield, price, discount=0.12)
+
+# note how discount is passed through to this function
+# remember to normalize the year to start year e.g the first year
+year_profit = year_profit %>% 
+  mutate(netpre = compute_NPV(cost=net, time=year-year[1], discount=0.12))
+
+```
+
+# Wrapper function that calls the yield function, and then the profit function
+
+```{r}
+#' computes profit from almond yield
+#' @param  price ($/kj)
+#' @param  yield (ton/acre)
+#' @param  year (when was energy obtained)
+#' @param discount rate (default 0.12)
+#' @return data frame with estimate of profit
+compute_profit_fromyield = function(df, year, Yield, price, discount=0.12) {
+
+  yield_df <- almond_yield(df)
+  
+  profit_df <- yield_df %>% 
+    select(-Yield) %>% 
+    mutate(net = Yield*price,
+           netpre = compute_NPV(cost=net, 
+                                time=Year-Year[1], # remember to normalize the year to start year e.g the first year
+                                discount=0.12))
+  profit_df <- profit_df %>%
+     filter(Year == year)
+  
+  return(profit_df)
+}
+
+compute_profit_fromyield(monthly_clim, year = 1995, Yield = 0.5, price = 1000)
+```
+
+
 # Sensitivty Analysis on 2 Parameters
 **pulling from  `InformalSensitivity2.Rmd``**
-### mapping parameters
-```{r}
-almond_func <- function(T, P, df) {
-  yields <- data.frame()
-  
-  # iterate over the rows to get yields
-  for(date in 1:nrow(df)) {
-    T_min <- T[date]
-    
-    # Use the previous month's precipitation
-    if (date > 1) {
-      P_val <- P[date - 1]
-    } else {
-      P_val <- NA
-    }
-    
-    # Calculate yield
-    Y_min <- (-0.015 * T_min) - (0.0046 * (T_min^2)) - (0.07 * P_val) + (0.0043 * (P_val^2)) + 0.28
-    
-    # Print out intermediate values for debugging
-    cat("T_min:", T_min, "\n")
-    cat("P_val:", P_val, "\n")
-    cat("Y_min:", Y_min, "\n")
-    
-    # Get the year and month for the current row
-    Year <- df$year[date]
-    Month <- df$month[date]
-    
-    # Create a dataframe with yield, year, and month
-    calculations <- data.frame(
-      Year = Year,
-      Month = Month,
-      Y_min = Y_min
-    )
-    
-    # Append the calculations to the yields dataframe
-    yields <- rbind(yields, calculations)
-  }
-  
-  # Remove rows with NA values in Y_min
-  yields <- na.omit(yields)
-  
-  # Calculate summary statistics for the yields
-  yield_summary <- data.frame(
-    Ymax = max(yields$Y_min, na.rm = TRUE),
-    Ymin = min(yields$Y_min, na.rm = TRUE),
-    Ymean = mean(yields$Y_min, na.rm = TRUE)
-    
-  )
-  
-  # Return both the summary statistics and the yields dataframe in a list
-  return(list(yield_summary = yield_summary, yields = yields))
-}
 
-# Generate random T and P values
-T <- runif(min = min(clim$tmin_c), max = max(clim$tmin_c),n = 10)
-P <- runif(min = min(clim$precip), max = max(clim$precip), n = 10)
-
-# Combine T and P into a dataframe
-parms <- data.frame(T = T, P = P)
-
-# Call almond_func for each row of parms
-results <- pmap(list(T = parms$T, P = parms$P), almond_func, df = monthly_clim)
-
-results
-
-```
-
-
-```{r}
-library(purrr)
-
-# Define the almond_func function
-almond_func <- function(T, P, df) {
-  yields <- data.frame()
-  
-  # iterate over the rows to get yields
-  for (date in 1:nrow(df)) {
-    
-    # Get the temperature and precipitation
-    T_min <- T[date]
-    if (date > 1) {
-      P_val <- P[date - 1]
-    } else {
-      P_val <- NA  # If there's no previous month, set precipitation to NA
-    }
-    
-    # Calculate yield
-    Y_min <- (-0.015 * T_min) - (0.0046 * (T_min^2)) - (0.07 * P_val) + (0.0043 * (P_val^2)) + 0.28
-    
-    # Get the year and month for the current row
-    Year <- df$year[date]
-    Month <- df$month[date]
-    
-    # Create a dataframe with yield, year, and month
-    calculations <- data.frame(
-      Y_min = Y_min,
-      Year = Year,
-      Month = Month
-    )
-    
-    # Append the calculations to the yields dataframe
-    yields <- rbind(yields, calculations)
-  }
-  
-  # Remove rows with NA values in Y_min
-  yields <- na.omit(yields)
-  
-  # Check if there are any non-missing values in Y_min
-  if (nrow(yields) == 0) {
-    # If there are no non-missing values, set summary statistics to NA
-    yield_summary <- data.frame(
-      Ymax = NA,
-      Ymin = NA,
-      Ymean = NA
-    )
-  } else {
-    # Calculate summary statistics for the yields
-    yield_summary <- data.frame(
-      Ymax = max(yields$Y_min),
-      Ymin = min(yields$Y_min),
-      Ymean = mean(yields$Y_min)
-    )
-  }
-  
-  # Return both the summary statistics and the yields dataframe in a list
-  return(list(yield_summary = yield_summary, yields = yields))
-}
-
-# Generate random T and P values
-T <- runif(min = min(clim$tmin_c), max = max(clim$tmin_c), n = 9)
-P <- runif(min = min(clim$precip), max = max(clim$precip), n = 9)
-
-# Combine T and P into a dataframe
-parms <- data.frame(T = T, P = P)
-
-# Call almond_func for each row of parms
-results <- pmap(list(T = parms$T, P = parms$P), almond_func, df = monthly_clim)
-
-results
-```
-
-
-
-
-```{r}
-# FROM DRAFT RMD
-T <- runif(min = min(clim$tmin_c),
-             max = max(clim$tmin_c),
-             n = 9)
-
-P <- runif(min = min(clim$precip),
-          max = max(clim$precip),
-          n = 9)
-
-
-parms = cbind.data.frame(T, P)
-
-results <- parms %>% 
-  pmap(almond_func,
-       df = monthly_clim,
-       clr = "skyblue"
-       )
-
-results
-
-```
 
 ```{r}
 #. FROM CLASS
 # generate samples for both parameters
 nsamples = 300
 deviation = 0.15
-base_thresh = 10000
-ethresh = runif(min=base_thresh-deviation*base_thresh,
-                max = base_thresh+deviation*base_thresh, n=nsamples)
+base_yield = 0.9 # based on the paper
+Yield = runif(min = base_yield - deviation*base_yield,
+                max = base_yield + deviation*base_yield,
+                n=nsamples)
 
-eff = rnorm(mean=0.6, sd = 0.1, n=nsamples)
+price = rnorm(mean=4000, sd = 1000, n=nsamples)
 
-parms = cbind.data.frame(eff, ethresh)
+parms = cbind.data.frame(Yield, price)
 
 # use pmap 
 # takes function name and then names of all parameters that don't change
-results = parms %>% pmap(solarpv,  area=0.1, 
-                         solar=sierraczosolar, clr="green",
-                         eunit="W", g=FALSE, etype="direct")
+results = parms %>% 
+  pmap(compute_profit_fromyield, year = 1995, 
+       df = monthly_clim, discount = 0.12)
 
 results[[1]]
 length(results)
 
 # now we can extract results from the list as above
-mean_elect = map_df(results,`[`, c("mean")) 
+profit_y_95 = map_df(results,`[`, c("netpre")) 
 # and we can add the parameter values for each run
-mean_elect = cbind.data.frame(mean_elect, parms)
+profit_y_95 = cbind.data.frame(profit_y_95, parms)
 
 # plot - pick on of the 2 parameter as a color
 
-p1 = ggplot(mean_elect, aes(ethresh, mean, col=eff))+geom_point(cex=2)+
-  labs(y="Mean Annual Electricity W", x="Threshold Radiation (kJ/m2)  \n above which energy production is more efficient")
+p1 = ggplot(profit_y_95, aes(x = Yield, 
+                          y = netpre, 
+                          col=price)) + 
+  geom_point(cex=2) +
+  theme_minimal() +
+  scale_color_fermenter(palette = "RdPu", direction = 1) +
+  labs(y="Net Profit", 
+       x="Almond yield (ton/acre)")
 
-p2 = ggplot(mean_elect, aes(eff, mean, col=ethresh))+geom_point(cex=2)+
-  labs(y="Mean Annual Electricity W", x="Efficiency")
-ggarrange(p1,p2)
+p2 <- ggplot(profit_y_95, aes(x = price, 
+                             y = netpre, col=Yield)) + 
+  geom_jitter(cex=2) +
+  theme_minimal() +
+  scale_color_fermenter(palette = "RdPu", direction = 1) +
+  labs(y="Net Profit", 
+       x="Price per acre")
 
-# what do we learn from this
-
-# extract annual 
-tmp = map_df(results,`[`, c("annual")) 
-annual_elect = as.data.frame(tmp$annual$year)
-colnames(annual_elect)="year"
-annual_elect$elect = tmp$annual$elect
 ```
 
 ### Visual 1
+These informal sensitivity analysises were performed simultaneously for a the year 1995. Our visual provides sufficient evidence to conclude that the profit model is more sensitive to price per acre compared to the almond crop yield. It is possible that the strong affect of price on profits may obscure the affect of yield on the profit model.
+
 ```{r}
-# boxplot
-ggplot(site2df, 
-       aes(as.factor(year),elect, group=year))+
-  geom_boxplot()+
-  labs(y="Electricity generated in W", x="Year")
+p1 + p2
 
 ```
 
-### Visual 2
-```{r}
 
-```
 
-### Visual 3
-```{r}
-
-```
 
