@@ -89,25 +89,6 @@ compute_NPV = function(cost, time, discount=0.12) {
 
 # Profit Yield Function
 
-```{r}
-
-year_profit <- almond_yield(monthly_clim) %>% 
-  mutate(scen = row_number()) %>% 
-    select(year = Year, 
-           yield = Y_min)
-
-year_profit$net =  year_profit$Y_min*1000
-
-profit = yield_df %>% 
-  pmap(compute_profit_fromyield, price, discount=0.12)
-
-# note how discount is passed through to this function
-# remember to normalize the year to start year e.g the first year
-year_profit = year_profit %>% 
-  mutate(netpre = compute_NPV(cost=net, time=year-year[1], discount=0.12))
-
-```
-
 # Wrapper function that calls the yield function, and then the profit function
 
 ```{r}
@@ -190,7 +171,7 @@ p2 <- ggplot(profit_y_95, aes(x = price,
 
 ```
 
-### Visual 1
+### Visuals
 These informal sensitivity analysises were performed simultaneously for a the year 1995. Our visual provides sufficient evidence to conclude that the profit model is more sensitive to price per acre compared to the almond crop yield. It is possible that the strong affect of price on profits may obscure the affect of yield on the profit model.
 
 ```{r}
