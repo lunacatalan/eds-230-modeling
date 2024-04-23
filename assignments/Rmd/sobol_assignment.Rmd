@@ -1,0 +1,205 @@
+---
+title: "Sobol Assignment"
+authors: "Luna Hershenfeld-Catalan & Sofia Ingersoll"
+date: "2024 April 25"
+output: html
+---
+# Part 1
+
+Paragraph on how results of the sensitivity analysis reported on in the paper might contribute to understanding (or prediction) within an environmental problem solving or management context.
+
+# Part 2
+
+Use class model of atmospheric conductance
+
+Cat=vm6.25∗ln(zm−zdz0)2
+
+- Windspeeds v are normally distributed with a `mean of 300 cm/s with a standard deviation of 50 cm/s`
+
+- For `vegetation height` assume that height is somewhere between `3.5 and 5.5 m` (but any value in that range is equally likely)
+
+- For the `kd and k0` parameters you can assume that they are normally distributed with `standard deviation of 1% of their default values`
+
+```{r set_up, message = FALSE}
+library(here)
+library(tidyverse)
+
+sager <- read.table("../data/sager.txt", header=T) %>% 
+  ## add date
+  mutate(date = paste(day,month,year, sep="/"))
+
+sager$date <- as.Date(sager$date,"%d/%m/%Y")
+
+#head(sager)
+
+# multiple results - lets say we've run the model for multiple years, each column
+# is streamflow for a different parameter set
+msage <- read.table("../data/sagerm.txt", header=T)
+#head(msage)
+
+# lets say we know the start date from our earlier output
+msage$date = sager$date
+msage$month = sager$month
+msage$year = sager$year
+msage$day = sager$day
+msage$wy = sager$wy
+
+
+# how can we plot all results - lets plot water year 1970 otherwise its hard to see
+msagel <- msage %>% 
+  pivot_longer(cols=!c(date, month, year, day,wy),
+               names_to="run",
+               values_to="flow")
+#head(msage)
+```
+
+
+1. Use the Sobol approach to generate parameter values for the 4 parameters
+```{r}
+
+```
+
+2. Run the atmospheric conductance model for these parameters
+```{r}
+
+```
+
+3. Plot conductance estimates in a way that accounts for parameter uncertainty
+```{r}
+
+```
+
+4. Plot conductance estimates against windspeed use the parameter that is 2nd in terms of total effect on response
+```{r}
+
+```
+
+5. Estimate the Sobel Indices for your outut
+```{r}
+
+```
+
+6. Comment on what this tells you about how atmospheric conductance and its sensitivity to variation in windspped differs in this setting as compared to the setting that we examined in class where windspeed was lower and less variable and vegetation was taller.
+
+
+
+**TAKEN FROM COMPUTE PERFORMANCE METRICS.RMD**
+
+```{r multipel}
+
+# multiple results - lets say we've run the model for multiple years, each column
+# is streamflow for a different parameter set
+msage = read.table("../Data/sagerm.txt", header=T)
+
+# lets say we know the start date from our earlier output
+msage$date = sager$date
+head(msage)
+msage$month = sager$month
+msage$year = sager$year
+msage$day = sager$day
+msage$wy = sager$wy
+
+# and we still have observed data from above
+
+
+# how can we plot all results - lets plot water year 1970 otherwise its hard to see
+msagel = msage %>% pivot_longer(cols=!c(date, month, year, day,wy), names_to="run", values_to="flow")
+
+p1=ggplot(subset(msagel, wy == 1970), aes(as.Date(date), flow, col=run))+geom_line()+theme(legend.position = "none")
+p1
+# lets add observed streamflow
+p1+geom_line(data=subset(sager, wy == 1970), aes(as.Date(date), obs), size=2, col="black", linetype=2)+labs(y="Streamflow", x="Date")
+
+
+# compute performance measures for all output
+res = msage %>% select(!c("date","month","year","day","wy")) %>%
+      map_dbl(nse, o=sager$obs )
+
+head(res)
+
+# another example using our low flow statistics
+# use apply to compute for all the data
+# using the updated low flow metrics routing that also computed combined metrics
+
+source("../R/compute_lowflowmetrics_all.R")
+res = msage %>% select(-date, -month, -day, -year, -wy ) %>% map_df(compute_lowflowmetrics_all, o=sager$obs, month=msage$month, day=msage$day, year=msage$year, wy=msage$wy)
+
+
+# interesting to look at range of metrics - could use this to decide on
+# acceptable values
+summary(res)
+
+
+# graph range of performance measures
+resl = res %>% pivot_longer(cols=everything(), names_to="metric", values_to="value")
+ggplot(resl, aes(metric, value))+geom_boxplot()+facet_wrap(~metric, scales="free")
+
+# try this
+# assign an identifier to each row, use the same identify for columns of original streamflow data
+# we can then use that to pick data
+res$run = seq(from=1,to=nrow(res))
+head(msage)
+colnames(msage)=c(res$run, "date","month","year","day","wy")
+
+# best one
+best = res[which.max(res$combined),]
+msagel  =  msage %>% pivot_longer(cols=!c(date, month, year, day,wy), names_to="run", values_to="flow")
+ggplot(subset(msagel, run == best$run), aes(date, flow)) + geom_line()
+
+```
+
+**Taken from lect. 6 on Sobol**
+This is for first order indicies
+```{r}
+# generate two examples of random number from parameter distributions
+np=1000
+k_o = rnorm(mean=0.1,sd=0.1*0.1, n=np)
+k_d = rnorm(mean=0.7, sd=0.7*0.1, n=np)
+v = rnorm(mean=250, sd=30, n=np)
+height = runif(min=9.5, max=10.5, n=np)
+X1 = cbind.data.frame(k_o, k_d, v, height=height)
+# repeat sampling
+k_o = rnorm(mean=0.1,sd=0.1*0.1, n=np)
+k_d = rnorm(mean=0.7, sd=0.7*0.1, n=np)
+v = rnorm(mean=250, sd=30, n=np)
+height = runif(min=9.5, max=10.5, n=np)
+X2 = cbind.data.frame(k_o, k_d, v, height=height)
+# there are different versions of sobol functions that have different approaches for estimating
+# parameters and indices, we use an approach implemented by jansen
+sens_Catm_Sobol = sobolSalt(model = NULL, X1, X2, nboot = 100)
+# Take a look at the Sobol generated sensitivity object
+# your parameters sets for sensitivity analysis are in X
+
+# run model for all parameter sets
+# make sure you give the parameters names
+parms = as.data.frame(sens_Catm_Sobol$X)
+colnames(parms)= colnames(X1)
+res = pmap_dbl(parms, Catm)
+sens_Catm_Sobol = sensitivity::tell(sens_Catm_Sobol,res, res.names="ga")
+# main effect: partitions variance (main effect without co-variance) - sums approximately to one
+sens_Catm_Sobol$S
+
+# useful to add names
+row.names(sens_Catm_Sobol$S) = colnames(parms)
+sens_Catm_Sobol$S
+
+# total effect - accounts for parameter interactions
+row.names(sens_Catm_Sobol$T) = colnames(parms)
+sens_Catm_Sobol$T
+
+# Both the main effect and total effect can tell us something about how the parameter influences results
+print(sens_Catm_Sobol)
+
+# graph two most sensitive parameters
+both = cbind.data.frame(parms, gs=sens_Catm_Sobol$y)
+# look at overall gs sensitvity to uncertainty
+ggplot(both, aes(x=gs))+geom_histogram()+geom_vline(xintercept=mean(both$gs), col="cyan")
+
+# look at response of conductance to the two most important variables
+ggplot(both, aes(k_d,gs, col=k_o))+geom_point()+labs(y="Conductance (mm/s)", x="k_d parameter")
+
+# use second most sensitive parameter (using most important as color)
+ggplot(both, aes(k_o,gs, col=k_d))+geom_point()+labs(y="Conductance (mm/s)", x="k_d parameter")
+```
+
+*
