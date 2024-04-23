@@ -33,7 +33,7 @@ observed time series and mdoelled time series
   
 ```{r simple}
 
-sager = read.table("../../R/sager.txt", header=T)
+sager = read.table("../data/sager.txt", header=T)
 head(sager)
 
 # add date
