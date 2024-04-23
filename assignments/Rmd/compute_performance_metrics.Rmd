@@ -1,7 +1,21 @@
 ---
+author: "Luna & Sofia"
 title: "compute_metrics"
 output: html_document
+editor_options: 
+  markdown: 
+    wrap: 72
 ---
+
+Explanation: We decided to investigate the metric high stream flow
+because these are important to understand for flooding and drought risk.
+Additionally, it affects ecosystem and vegetation health, and can help
+design irrigation solutions that are on a time basis.
+
+The model was ok, with a combined error of 0.65 though the predicted and
+observed outcomes are highly correlated which is a good sign.
+
+![](images/Screenshot 2024-04-23 at 2.22.01 PM.png)
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
@@ -11,27 +25,32 @@ library(tidyverse)
 library(purrr)
 library(ggpubr)
 ```
+
 # Comparing model and observed time series output
 
 When evaluating a model - Always plot first
 
 Plotting and what it can tell you
 
-* plot through time 
-  * look for differences in performance in different periods
-  * does model capture seasonlity, temporal trends
+-   plot through time
 
-* some things to think about that might help make it easier to "see" differences betwee
-observed time series and mdoelled time series
+    -   look for differences in performance in different periods
+    -   does model capture seasonlity, temporal trends
 
-  * consider appropriate y-axis 
-  * consider picking a window (subset in x-axis) 
+-   some things to think about that might help make it easier to "see"
+    differences betwee observed time series and mdoelled time series
 
-* plot x-y (observed vs model)
-  * look for bios (error) (using a 1 to 1 line are points always above or below)
-  * look for errors associated with particular magnitdues (e.g high or low values)
-  
-```{r simple}
+    -   consider appropriate y-axis
+    -   consider picking a window (subset in x-axis)
+
+-   plot x-y (observed vs model)
+
+    -   look for bios (error) (using a 1 to 1 line are points always
+        above or below)
+    -   look for errors associated with particular magnitdues (e.g high
+        or low values)
+
+```{r simple, message=FALSE, warning=FALSE}
 
 sager = read.table("../data/sager.txt", header=T)
 head(sager)
@@ -64,15 +83,15 @@ Once you've plotted, consider some metrics that summarize performance
 
 Think about what part of the time-series is of interest
 
-  * long term means (bims)
-  * year to year variablity
-  * peak or minimum events
-  
+-   long term means (bims)
+-   year to year variablity
+-   peak or minimum events
+
 Create performance metrics that are relevant to the model application
 
 Lets start though with some simple metrics
 
-```{r}
+```{r message=FALSE, warning=FALSE}
 
 
 source("../../R/nse.R")
@@ -98,40 +117,15 @@ cper(m=sager$model, o=sager$obs, weight.nse=0.8)
 
 Performance also depends on the 'what' you are evaluating
 
-  * time steps (annual, daily, monthly)
-  
-  * selection of particular periods of time
-  
-```{r}
-# try a different time step
-sager_wy = sager %>% group_by(wy) %>% summarize(model=sum(model), obs=sum(obs))
+-   time steps (annual, daily, monthly)
 
-nse(sager_wy$model, sager_wy$obs)
-cper(m=sager_wy$model, o=sager_wy$obs, weight.nse=0.8)
-
-# just look at august flow
-# first sum by month
-tmp = sager %>% group_by(month, year) %>% summarize(model=sum(model), obs=sum(obs))
-
-# now extract august
-sager_aug = subset(tmp, month==8)
-cor(sager_aug$model, sager_aug$obs)
-
-# turn your evaluation metric into a function
-source("../../R/compute_lowflowmetrics.R")
-compute_lowflowmetrics
-compute_lowflowmetrics(m=sager$model,o=sager$obs, month=sager$month, day=sager$day, year=sager$year, wy=sager$wy)
-
-# use different low flow months
-compute_lowflowmetrics(m=sager$model,o=sager$obs, month=sager$month, day=sager$day, year=sager$year, wy=sager$wy, low_flow_months = c(7:9))
-
-
-```
-  
+-   selection of particular periods of time
 
 # try another metric
-- high streamflow
-```{r}
+
+-   high streamflow
+
+```{r, message=FALSE, warning=FALSE}
 
 # use sagerl
 sagerl
@@ -149,7 +143,7 @@ ggplot(subset, aes(date, flow, col=source, linetype=source)) +
 # turn your evaluation metric into a function
 source("../../R/compute_highflowmetrics.R")
 compute_highflowmetrics
-compute_lowflowmetrics(m=sager$model,o=sager$obs, month=sager$month, day=sager$day, year=sager$year, wy=sager$wy)
+compute_highflowmetrics(m=sager$model,o=sager$obs, month=sager$month, day=sager$day, year=sager$year, wy=sager$wy)
 
 # use different low flow months
 compute_highflowmetrics(m=sager$model,o=sager$obs, month=sager$month, day=sager$day, year=sager$year, wy=sager$wy, 
@@ -157,18 +151,16 @@ compute_highflowmetrics(m=sager$model,o=sager$obs, month=sager$month, day=sager$
 
 ```
 
-
-
 # Create a combined metric
 
 Sometime you want to summarize everything in one number
 
-Especially if you want to rank different models
-or create indices like Sobol Sensitivity Indices
+Especially if you want to rank different models or create indices like
+Sobol Sensitivity Indices
 
-```{r}
+```{r, message=FALSE, warning=FALSE}
 
-perf = compute_lowflowmetrics(m=sager$model,o=sager$obs, month=sager$month, day=sager$day, year=sager$year, wy=sager$wy, low_flow_months = c(7:9))
+perf = compute_highflowmetrics(m=sager$model,o=sager$obs, month=sager$month, day=sager$day, year=sager$year, wy=sager$wy, high_flow_months = c(1:3))
 
 perf = as.data.frame((perf))
 # remember you want error to be low but correlation to be high 
@@ -179,22 +171,25 @@ perf = as.data.frame((perf))
 tmp = sager %>% subset(month %in% c(7:9)) 
 errmax = mean(tmp$obs)*0.5
 
-perf = perf %>% mutate(annual_min_err_trans = max(0,(1-abs(annual_min_err/errmax) )))
+perf = perf %>% mutate(annual_max_err_trans = max(0,(1-abs(annual_max_err/errmax) )))
       
 # for monthly we can do a simpler thing to find maximum allowable errror   
 tmp = sager %>% subset(month %in% c(7:9)) %>% group_by(wy, month) %>% summarize(obs=sum(obs))
 
 errmax = mean(tmp$obs)*0.5
  
-perf = perf %>% mutate(low_month_err_trans = max(0,(1-abs(low_month_err/errmax) )))
+perf = perf %>% mutate(high_month_err_trans = max(0,(1-abs(high_month_err/errmax) )))
 
 # now we have 4 measures that we can combine together
 
-perf = perf %>% mutate(combined = (annual_min_cor + annual_min_err_trans + low_month_err_trans + low_month_cor)/4)
+perf = perf %>% 
+  mutate(combined = (annual_max_cor + annual_max_err_trans + high_month_err_trans + high_month_cor)/4)
+
 perf
 # or weight differently - we know that minimum flows are hard to get to weight those differently
 
-perf = perf %>% mutate(combined2 = 0.1*annual_min_cor + 0.1*annual_min_err_trans + 0.4*low_month_err_trans+ 0.4*low_month_cor)
+perf = perf %>% 
+  mutate(combined2 = 0.1*annual_max_cor + 0.1*annual_max_err_trans + 0.4*high_month_err_trans+ 0.4*high_month_cor)
 
 perf
 
@@ -203,35 +198,29 @@ perf
 
 ```
 
-
 # Calibration
 
 Calibration is picking parameter sets based on performance evaluation
 
-Apply metrics over multiple outputs (generated by running across many parameters sets) 
+Apply metrics over multiple outputs (generated by running across many
+parameters sets)
 
 Ideally we'd generate these parameter "smartly" - LHS or Sobol sampling
 
-Example - a dataset where each column
-is a different model run for Sagehen Creek
-(using different parameters) 
+Example - a dataset where each column is a different model run for
+Sagehen Creek (using different parameters)
 
-don't worry about what the  parameters are  for now
+don't worry about what the parameters are for now
 
-File Name
-* sagerm.txt
+File Name \* sagerm.txt
 
-
-
-```{r multipel}
-
+```{r multipel, message=FALSE, warning=FALSE}
 # multiple results - lets say we've run the model for multiple years, each column
 # is streamflow for a different parameter set
-msage = read.table("../../R/sagerm.txt", header=T)
+msage = read.table("../data/sagerm.txt", header=T)
 
 # lets say we know the start date from our earlier output
 msage$date = sager$date
-head(msage)
 msage$month = sager$month
 msage$year = sager$year
 msage$day = sager$day
@@ -240,29 +229,48 @@ msage$wy = sager$wy
 # and we still have observed data from above
 msage = left_join(msage, sager[,c("obs","date")], by=c("date"))
 
-# how can we plot all results - lets plot water year 1970 otherwise its hard to see
-msagel = msage %>% pivot_longer(cols=!c(date, month, year, day,wy), names_to="run", values_to="flow")
+# subset for split sample calibration
+short_msage = subset(msage, wy < 1975)
 
-p1=ggplot(subset(msagel, wy == 1978), aes(as.Date(date), flow, col=run))+geom_line()+theme(legend.position = "none")
+
+# how can we plot all results - lets plot water year 1970 otherwise its hard to see
+msagel = msage %>% 
+  pivot_longer(cols=!c(date, month, year, day,wy), names_to="run", values_to="flow")
+
+
+p1=ggplot(subset(msagel, wy == 1978), # subset for only this year
+          aes(as.Date(date), flow, col=run)) + 
+  geom_line() + 
+  theme(legend.position = "none")
 p1
 # lets add observed streamflow
-p1+geom_line(data=subset(sager, wy == 1978), aes(as.Date(date), obs), size=2, col="black", linetype=2)+labs(y="Streamflow", x="Date")
+p1 + geom_line(data=subset(sager, wy == 1978), aes(as.Date(date), obs), 
+               size=2, col="black", linetype=2) +
+  labs(y="Streamflow", x="Date")
+```
 
+Calibration with years above 1988
 
-# compute performance measures for all output
-res = msage %>% select(!c("date","month","year","day","wy")) %>%
-      map_dbl(nse, o=sager$obs )
+```{r message=FALSE, warning=FALSE}
+# subset for split sample calibration
+short_msage = subset(msage, wy < 1976)
+
+# compute performance measures for output from all parameters
+res <- short_msage %>% 
+  select(!c("date","month","year","day","wy","obs")) %>%
+  map_dbl(nse, short_msage$obs)
+
 
 head(res)
 
 # another example using our low flow statistics
 # use apply to compute for all the data
-# using the updated low flow metrics routing that also computed combined metrics
+# using the updated high flow metrics routing that also computed combined metrics
 
 source("../../R/compute_highflowmetrics_all.R")
-res = msage %>% 
-  select(-date, -month, -day, -year, -wy ) %>% 
-  map_df(compute_highflowmetrics_all, o=sager$obs, month=msage$month, day=msage$day, year=msage$year, wy=msage$wy)
+res = short_msage %>% select(-date, -month, -day, -year, -wy, -obs ) %>%
+  map_df(compute_highflowmetrics_all, o=short_msage$obs, month=short_msage$month,
+        day=short_msage$day, year=short_msage$year, wy=short_msage$wy)
 
 
 # interesting to look at range of metrics - could use this to decide on
@@ -271,25 +279,53 @@ summary(res)
 
 
 # graph range of performance measures
-resl = res %>% pivot_longer(cols=everything(), names_to="metric", values_to="value")
-ggplot(resl, aes(metric, value))+geom_boxplot()+facet_wrap(~metric, scales="free")
+resl = res %>% 
+  pivot_longer(cols=everything(), names_to="metric", values_to="value")
+ggplot(resl, aes(metric, value))+
+  geom_boxplot()+
+  facet_wrap(~metric, scales="free")
+```
 
+```{r message=FALSE, warning=FALSE}
 # try this
 # assign an identifier to each row, use the same identify for columns of original streamflow data
 # we can then use that to pick data
 res$run = seq(from=1,to=nrow(res))
-head(msage)
-colnames(msage)=c(res$run, "date","month","year","day","wy")
+
+colnames(msage)=c(res$run, "date", "month", "year","day","wy", "obs")
+
+colnames(msage)
 
 # best one
 best = res[which.max(res$combined),]
-msagel  =  msage %>% pivot_longer(cols=!c(date, month, year, day,wy), names_to="run", values_to="flow")
-ggplot(subset(msage, run == best$si), 
-       aes(date, flow)) + 
-  geom_line()
-
 worst = res[which.min(res$combined),]
+
+best
+worst
 ```
 
+Plot the best run:
 
+```{r message=FALSE, warning=FALSE, error = FALSE}
+msagel <- short_msage %>% 
+  pivot_longer(cols=!c(date, month, year, day, wy, obs), names_to="run", values_to="flow")
+  
+# post calibration based on BEST run 
+ggplot(subset(msagel, run == best$run), 
+       aes(date, flow)) + 
+  geom_line(color = "black") + 
+  # plotting based on observations
+  geom_line(data = msagel, aes(date, obs), col="red") + 
+  theme_classic() +
+  labs(title = "Calibrated High Streamflow")
 
+```
+
+Compare runs
+
+```{r}
+compruns = msagel %>% select(best$sim, worst$sim, date, obs, month, day, year, wy)
+ compruns = subset(compruns, wy > 1970)
+ compruns_mwy = compruns %>% select(-c(day,date, year)) %>% group_by(month, wy) %>%
+        summarize(across(everything(), mean))
+```

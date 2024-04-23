@@ -13,7 +13,7 @@
 #' @return annual_max_err, annual_max_corr, max_month_cor, high_month_err
 
 
-compute_highflowmetrics_all = function(m,o, month, day, year,wy, high_flow_months=8,
+compute_highflowmetrics_all = function(m,o, month, day, year,wy, high_flow_months=3,
                                       max_err_annual_max=NULL, max_err_max_month=NULL, wts=c(0.25,0.25,0.25,0.25)) {
   
   
