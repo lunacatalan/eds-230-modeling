@@ -10,14 +10,14 @@
 #' @export
 #'
 #' @examples
-dforestgrowth = function(Time, C, parms) {
+dforestgrowth = function(Time, C, parms, thresh) {
   
-  if(C < 50) {
+  if(C < thresh) {
     
     dG = parms$r * C
   } else {
     
-    dG = parms$g * C * (1- C/parms$K)
+    dG = parms$g * (1- C/parms$K)
   }
   
   return(list(dG))
