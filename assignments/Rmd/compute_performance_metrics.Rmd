@@ -15,7 +15,7 @@ design irrigation solutions that are on a time basis.
 The model was ok, with a combined error of 0.65 though the predicted and
 observed outcomes are highly correlated which is a good sign.
 
-![](images/Screenshot 2024-04-23 at 2.22.01 PM.png)
+![](images/Screenshot%202024-04-23%20at%202.22.01%20PM.png)
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
