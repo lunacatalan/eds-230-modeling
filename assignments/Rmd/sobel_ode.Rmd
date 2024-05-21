@@ -2,7 +2,6 @@
 title: "Sobol ODE Assignment"
 authors: "Luna Hershenfeld-Catalan"
 date: "2024 May 7th"
-output: html
 ---
 
 Task
@@ -19,6 +18,7 @@ library(sensitivity)
 
 Create the model as a function:
 ```{r eval = FALSE}
+# version 1
 dforestgrowth = function(Time, C, parms) {
   
   if(C < 50) { # the canopy threshold
@@ -27,6 +27,20 @@ dforestgrowth = function(Time, C, parms) {
   } else {
     
     dG = parms$r * (1- C/parms$K)
+  }
+  
+  return(list(dG))
+}
+
+# adjusted
+dforestgrowth = function(Time, C, parms, thresh) { # added thresh
+  
+  if(C < thresh) {
+    
+    dG = parms$r * C
+  } else {
+    
+    dG = parms$g * (1- C/parms$K) # updated the g parameter
   }
   
   return(list(dG))
@@ -164,7 +178,7 @@ return(list(maxgrowth=maxgrowth, threshyear=threshyear))
 # this works!
 
 # compute_metrics(result, 100)
-p_wrapper = function(r, K, g, Cinitial, simtimes, odefunc, metricfunc) {
+p_wrapper = function(r, K, g, Cinitial, simtimes, odefunc, metricfunc, thresh) {
     parms = list(r=r, K=K, g=g)
     result = ode(y=Cinitial, 
                  times=simtimes, 
@@ -189,6 +203,7 @@ Apply to everything:
 # now use pmap as we did before
 all = as.data.frame(sens_P$X) %>% 
   pmap(p_wrapper, 
+       thresh=50,
        Cinitial=Cinitial, 
        simtimes=simtimes,
        odefunc=dforestgrowth,
@@ -216,7 +231,37 @@ ggplot(tmp, aes(metric, value, col=metric)) +
   theme_classic()
 ```
 
+Collect sobol indices
+```{r}
+sens_P_maxgrowth = sensitivity::tell(sens_P,
+                                  allres$maxgrowth)
+
+# first-order indices (main effect without co-variance)
+rownames(sens_P_maxgrowth$S)=c("r","K", "g")
+sens_P_maxgrowth$S
+
+# total sensitivity index -note that this partitions the output variance 
+rownames(sens_P_maxgrowth$T)=c("r","K", "g")
+sens_P_maxgrowth$T
+
+
+# create another one for max year
+sens_P_threshyear = sensitivity::tell(sens_P,allres$threshyear)
+# first-order indices (main effect without co-variance)
+rownames(sens_P_threshyear$S)=c("r","K", "g")
+sens_P_threshyear$S
+
+# total sensitivity index -note that this partitions the output variance - so values sum to 1
+rownames(sens_P_threshyear$T)=c("r","K", "g")
+sens_P_threshyear$T
+```
+
+The main effect (S) for on max growth by the parameters is growth rate (r) = 0.33, carrying capacity (K) = 0.46, and linear growth rate after canopy closure (g) is 0.24. The total sensitivity (T) for max growth to these parameters are 0.34, 0.42, and 0.23, respectively.
+
+The main effect (S) on threshold year by the parameters r, k, and g, are 0.92, 0.003, and 0.044, respectively. The total sensitivity to these (T) are 0.96, 0.03, and 0.07, respectively. 
+
 
 # 6. Discuss meaning of results of simulation (For example think about how what parameters climate change might influence).
 
-The results of these simulations indicate that the max growth year varies mainly between 183 and 186.
+Based on the sensitivity metrics, this means that the max growth is most sensitive to the carrying capacity, but is also very affected by the growth rate, and the threshold year is most sensitive to the growth rate. This is interesting since the growth rate could be affected by warming temperatures, and some forests might experience higher growth rates. This would result in less time to reach carrying capacity / threshold year, which means that there is a potential for changing the long term value of planting that tree. Also, given the rate of deforestation, it would be interesting to examine how the effect of the initial dorest size affects these parameter impacts, and whether there is an impact on what the max growth is. 
+
