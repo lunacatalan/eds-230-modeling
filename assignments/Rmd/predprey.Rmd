@@ -25,7 +25,7 @@ library(deSolve)
 library(sensitivity)
 ```
 
-```{r}
+```{r include = FALSE}
 lotvmodK = function(t, pop, pars) {
   with(as.list(c(pars,pop)), {
     dprey = rprey*(1-prey/K)*prey -  alpha*prey*pred
@@ -35,10 +35,10 @@ lotvmodK = function(t, pop, pars) {
 
 
 # initial conditions
-currpop=c(prey=10, pred=10)
+currpop=c(prey=1, pred=1)
 
 # set parameter list
-pars = c(rprey=0.1, alpha=0.6, eff=0.8,pmort=0.4, K=50)
+pars = c(rprey=0.1, alpha=0.6, eff=0.8,pmort=0.4, K=20)
 
 # times when you want to evaluate
 days = seq(from=1,to=500)
@@ -106,10 +106,23 @@ res = ode(y=currpop,
 resl = as.data.frame(res) %>% pivot_longer(-time, names_to="species", values_to="pop")
 
 # graph both populations over time
-p1=ggplot(resl, aes(time, pop, col=species))+geom_line()
-p2 = ggplot(as.data.frame(res), aes(pred, prey, col=(round(time/10))))+geom_point()+theme(legend.position = "none")
-p3 = ggplot(as.data.frame(res), aes(pred, prey, col=as.factor(round(time/10))))+geom_point()+theme(legend.position = "none")
-p3
+p1=ggplot(resl, aes(time, 
+                    pop, col=species)) + 
+  theme_classic() +
+  geom_line()
+
+p2 = ggplot(as.data.frame(res), 
+            aes(pred, prey, col=(round(time/10)))) + 
+  geom_point() + 
+  theme_classic() +
+  theme(legend.position = "none")
+
+p3 = ggplot(as.data.frame(res), 
+            aes(pred, prey, col=as.factor(round(time/10)))) + 
+  geom_point() + 
+  theme_classic() +
+  theme(legend.position = "none")
+
 ggpubr::ggarrange(p1,p3)
 ```
 
@@ -124,7 +137,90 @@ It is up to you how you "explore" hunting  - you can simply try different values
 
 You can assume the following are best guesses of key parameters
 
-rprey=0.95, alpha=0.01, eff=0.6,pmort=0.4, K=2000,
+rprey=0.95, alpha=0.01, eff=0.6,pmort=0.4, K=2000
+
+```{r}
+
+# generate the sobel parameters
+np=2000
+rhunt= rnorm(mean=0.001, sd=0.001*0.01, n=np)
+min_prey = seq(1, np)
+X1 = cbind.data.frame(rhunt=rhunt, min_prey=min_prey)
+
+np=2000
+rhunt= rnorm(mean=0.001, sd=0.001*0.01, n=np)
+min_prey = seq(1, np)
+X2 = cbind.data.frame(rhunt=rhunt, min_prey=min_prey)
+
+# fix any negative values and they are not meaningful
+X1 = X1 %>% map_df(pmax, 0.0)
+X2 = X2 %>% map_df(pmax, 0.0)
+
+# run sobel model
+sens_P = sobolSalt(model = NULL,X1, X2, nboot = 300)
+
+# lets add names 
+colnames(sens_P$X) = c("rhunt","min_prey")
+
+simtimes = seq(from=1, to=300)
+pars = list(rhunt=sens_P$X[1,"rhunt"], 
+             min_prey=sens_P$X[1,"min_prey"], 
+             rprey=0.95, alpha=0.01, eff=0.6, pmort=0.4, K=2000)
+
+# initial conditions
+currpop=c(prey=1, pred=1)
+
+# run our differential equation solver
+res = ode(y=currpop, 
+          times=simtimes, 
+          func=lotvmodK_hunt, 
+         # min_prey = ,
+          parms=pars)
+
+res = as.data.frame(res)
+
+```
+
+```{r}
+# compute_metrics(result, 100)
+p_wrapper = function(rhunt, min_prey, rprey, alpha, eff, pmort, K, currpop, simtimes, lotvmodK_hunt, metricfunc) {
+    pars = list(rhunt=sens_P$X[1,"rhunt"], 
+             min_prey=sens_P$X[1,"min_prey"], 
+             rprey=0.95, 
+             alpha=0.01, 
+             eff=0.6, 
+             pmort=0.4, 
+             K=2000)
+    result = ode(y=currpop, 
+          times=simtimes, 
+          func=lotvmodK_hunt, 
+         # min_prey = ,
+          parms=pars)
+  # get metrics
+  metrics=metricfunc(as.data.frame(result))
+  return(metrics)
+}
+
+compute_metrics = function(result) {
+  
+  # select the max result
+  maxgrowth = max(result$C)
+  
+  # set the results that are greater than the threhold
+  idx = which(result$C > thresh)[1] # select the first year its above threshold
+  idx = ifelse(is.na(idx), # if no results from greater than threshold
+               length(result$C), # then set the index to the length of results 
+               idx) # if not keep it
+  
+  # index the time that the growth passed threshold
+  threshyear = result$time[idx]
+  
+return(list(maxgrowth=maxgrowth, threshyear=threshyear))
+}
+
+```
+
+
 
 Submit the Rmarkdown that documents
 
