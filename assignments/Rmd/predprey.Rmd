@@ -141,6 +141,40 @@ rprey=0.95, alpha=0.01, eff=0.6,pmort=0.4, K=2000
 
 ```{r}
 
+np=2000
+rhunt= rnorm(mean=0.001, sd=0.001*0.01, n=np)
+min_prey = seq(1, np)
+
+pars = list(rhunt=sample(rhunt, 1), 
+             min_prey=sample(min_prey, 1), 
+             rprey=0.95, alpha=0.01, eff=0.6, pmort=0.4, K=2000)
+
+# run our differential equation solver
+res = ode(y=currpop, 
+          times=days, 
+          func=lotvmodK_hunt, 
+          parms=pars)
+
+# rearrange for plotting
+resl = as.data.frame(res) %>% pivot_longer(-time, names_to="species", values_to="pop")
+
+# graph both populations over time
+p1=ggplot(resl, aes(time, 
+                    pop, col=species)) + 
+  theme_classic() +
+  geom_line()
+
+p3 = ggplot(as.data.frame(res), 
+            aes(pred, prey, col=as.factor(round(time/10)))) + 
+  geom_point() + 
+  theme_classic() +
+  theme(legend.position = "none")
+
+ggpubr::ggarrange(p1,p3)
+```
+
+
+```{r}
 # generate the sobel parameters
 np=2000
 rhunt= rnorm(mean=0.001, sd=0.001*0.01, n=np)
@@ -179,13 +213,14 @@ res = ode(y=currpop,
 
 res = as.data.frame(res)
 
+
 ```
 
 ```{r}
 # compute_metrics(result, 100)
 p_wrapper = function(rhunt, min_prey, rprey, alpha, eff, pmort, K, currpop, simtimes, lotvmodK_hunt, metricfunc) {
-    pars = list(rhunt=sens_P$X[1,"rhunt"], 
-             min_prey=sens_P$X[1,"min_prey"], 
+    pars = list(rhunt=rhunt, 
+             min_prey=min_prey, 
              rprey=0.95, 
              alpha=0.01, 
              eff=0.6, 
@@ -207,7 +242,7 @@ compute_metrics = function(result) {
   maxgrowth = max(result$C)
   
   # set the results that are greater than the threhold
-  idx = which(result$C > thresh)[1] # select the first year its above threshold
+  idx = which(result$prey <= min_prey)[1] # select when hunting is not allowed
   idx = ifelse(is.na(idx), # if no results from greater than threshold
                length(result$C), # then set the index to the length of results 
                idx) # if not keep it
